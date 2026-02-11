@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: ./app
+    container_name: benchmark_app
+    environment:
+      - DB_TYPE=mongo        # postgres/mongo
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=benchmark
+      - POSTGRES_USER=benchmark
+      - POSTGRES_PASSWORD=benchmark
+      - MONGO_HOST=mongo
+      - MONGO_PORT=27017
+      - MONGO_DB=benchmark
+    depends_on:
+      - postgres
+      - mongo
+    ports:
+      - "8000:8000"
+
+  postgres:
+    image: postgres:16
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+        reservations:
+          cpus: "0.5"
+          memory: 512m
+    container_name: benchmark_postgres
+    environment:
+      - POSTGRES_DB=benchmark
+      - POSTGRES_USER=benchmark
+      - POSTGRES_PASSWORD=benchmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  mongo:
+    image: mongo:7
+    container_name: benchmark_mongo
+    ports:
+      - "27017:27017"
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: "1.0"
+    volumes:
+      - ./db/mongo/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: benchmark_cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: benchmark_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+volumes:
+  prometheus_data:
+
